@@ -1,7 +1,24 @@
 from tkinter import *
-# from psycopg2 import *
-# import psycopg2
+from psycopg2 import *
+import psycopg2
 from tkinter import messagebox
+
+
+
+# Connect to PSQL Database
+connection = psycopg2.connect(user="kagebo",
+                            password="D1EIvI0A",
+                            host="psql-dd1368-ht21.sys.kth.se",
+                            database="kagebo")
+
+# The cursor is used to perform database operations
+cursor = connection.cursor()
+
+# Executing a SQL query
+cursor.execute("SELECT version();")
+# Fetch result
+record = cursor.fetchone()
+print("You are connected to - ", record, "\n")
 
 
 def raise_frame(frame):
@@ -38,18 +55,27 @@ f5 = Frame(root)
 f6 = Frame(root)
 f7 = Frame(root)
 f8 = Frame(root)
-f9 = Frame(root)
 
 v1 = StringVar()
 
-for frame in (f1, f2, f3, f4, f5, f6, f7, f8, f9):
+for frame in (f1, f2, f3, f4, f5, f6, f7, f8):
     frame.grid(row=0, column=0, sticky='news')
 
 # Login page GUI
-Label(f1, text="Email Address").pack()
-admin_email = StringVar(f1)  # stores current input
-Entry(f1, textvariable=admin_email).pack()
-Button(f1, text="Login", command=lambda: raise_frame(f2)).pack()
+Label(f1, text="User ID").pack()
+admin_id = StringVar(f1)  # stores current input
+Entry(f1, textvariable=admin_id).pack()
+Button(f1, text="Login", command=lambda: login_verification(admin_id)).pack()
+
+
+# Login user_id query
+def login_verification(key):
+    cursor.execute("select 1 from admins where userid=" + str(key.get()))
+
+    if cursor.fetchone():  # if query returns true
+        raise_frame(f2)
+        connection.commit()  # commit to the database
+
 
 # create/search toggle GUI
 Label(f2, text="Choose between creating or searching for items:").pack()
@@ -88,7 +114,18 @@ Label(f3, text="Phone Number (Admin only):").pack()
 phone_number = StringVar(f3)
 Entry(f3, textvariable=phone_number).pack()
 
-Button(f3, text="Create User", command=lambda: popup()).pack()
+Button(f3, text="Create User", command=lambda: add_user()).pack()
+
+
+def add_user():
+    cursor.execute("insert into users values (" + int(user_id.get()) + ", " + str(name.get()) + ", " +
+                   str(address.get()) + ", " + str(email.get()) + ")")
+    cursor.execute("insert into admins values (" + int(user_id.get()) + ", " + str(department.get()) + ", " +
+                   str(phone_number.get()) + ")")
+    cursor.execute("insert into students values (" + int(user_id.get()) + ", " + str(program.get()) + ")")
+    connection.commit()
+    popup()
+
 
 # Book creation GUI
 Label(f4, text="Create Book").pack()
@@ -167,10 +204,11 @@ Button(f5, text="Search", command=lambda: raise_frame(f6)).pack()
 # search results GUI
 Label(f6, text="Search Results:").pack()
 
-# tillfällig array för att kunna skriva koden
+# tillfallig array for att kunna skriva koden
 results = ["Harry Potter", "Alfons", "Brott och straff"]
 for result in results:
     Button(f6, text=result, command=lambda entry=result: result_details(entry)).pack()
+
 
 # Book detailed view GUI + update/delete
 
@@ -182,7 +220,8 @@ def result_details(entry):
     Button(f7, text="Delete from database",
            command=lambda: popup_deletion()).pack()
 
-# Kommer behöva input i form av datastruktur som innehåller alla attribut till tupeln
+
+# will need input i form av datastruktur som contains alla attribut till tupeln
 
 
 def edit_view(entry):
@@ -232,7 +271,7 @@ def edit_view(entry):
         e7.insert(0, "")
         e7.pack()
 
-    if (v1.get() == "2"):  # if book search
+    if v1.get() == "2":  # if book search
         Label(f8, text="Edit Book").pack()
 
         Label(f8, text="Book ID:").pack()
@@ -315,15 +354,3 @@ raise_frame(f1)
 
 # program loop
 root.mainloop()
-
-""" 
-# Connect to PSQL Database
-try:
-    connection = psycopg2.connect(user="kagebo",
-                                  password="D1EIvI0A",
-                                  host = "127.0.0.0",
-                                  database = "labb3")
-    # The cursor is used to perform database operations 
-    cursor = connection.cursor()
-    item_tuple = (12, "Keyboard", item_purchase_time, 150)
- """
