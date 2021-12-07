@@ -3,7 +3,6 @@ from psycopg2 import *
 import psycopg2
 from tkinter import messagebox
 
-
 # Connect to PSQL Database
 connection = psycopg2.connect(user="kagebo",
                               password="D1EIvI0A",
@@ -38,11 +37,6 @@ def popup_deletion():
     raise_frame(f1)
 
 
-def popup_edit():
-    messagebox.showinfo(box_title, "Entry has been edited!")
-    raise_frame(f1)
-
-
 root = Tk()
 
 # initialize frames used in the GUI
@@ -72,15 +66,15 @@ def login_verification(key):
     cursor.execute("select 1 from admins where userid=" + key.get())
 
     if cursor.fetchone():  # if query returns true
-        raise_frame(f2)
+        switch_frame(f1, f2)
         connection.commit()  # commit to the database
 
 
 # create/search toggle GUI
 Label(f2, text="Choose between creating or searching for items:").pack()
-Button(f2, text="Add a User", command=lambda: raise_frame(f3)).pack()
-Button(f2, text="Add a Book", command=lambda: raise_frame(f4)).pack()
-Button(f2, text="Search", command=lambda: raise_frame(f5)).pack()
+Button(f2, text="Add a User", command=lambda: switch_frame(f2, f3)).pack()
+Button(f2, text="Add a Book", command=lambda: switch_frame(f2, f4)).pack()
+Button(f2, text="Search", command=lambda: switch_frame(f2, f5)).pack()
 
 # User creation GUI
 Label(f3, text="Create User").pack()
@@ -206,9 +200,15 @@ search_settings = {}
 cursor.execute("select distinct language from language")
 connection.commit()
 language_options = cursor.fetchall()
-chosen_language = StringVar()
-chosen_language.set("Swedish")
-languagedropdown = OptionMenu()
+menubutton = Menubutton(f5, text="Languages", indicatoron=True, borderwidth=1)
+menu = Menu(menubutton, tearoff=False)
+menubutton.configure(menu=menu)
+languagechoices = {}
+
+for choice in language_options:
+    languagechoices[choice] = IntVar(value=0)
+    menu.add_checkbutton(label=choice, variable=languagechoices[choice],
+                         onvalue=1, offvalue=0)
 
 Label(f5, text="Search")
 Radiobutton(f5, text="User", value=1, indicatoron=0,
@@ -218,175 +218,227 @@ Radiobutton(f5, text="Book", value=2, indicatoron=0,
 search_string = StringVar(f5)
 Entry(f5, textvariable=search_string).pack()
 Label(f5, text="Search Criteria:").pack()
-Label(f5, text="Languages:").pack()
-checkVar1 = IntVar(value=1)
-checkVar2 = IntVar(value=1)
-checkVar3 = IntVar(value=1)
-Checkbutton(f5, text="Swedish", variable=checkVar1,
-            onvalue=1, offvalue=0).pack()
-Checkbutton(f5, text="English", variable=checkVar2,
-            onvalue=1, offvalue=0).pack()
-Checkbutton(f5, text="German", variable=checkVar3,
-            onvalue=1, offvalue=0).pack()
-Button(f5, text="Search", command=lambda: raise_frame(f6)).pack()
+
+
+results = {}
+bookdict = {}
+userdict = {}
+
+
+def search_user():
+    entry = search_string.get()
+    if entry == "":
+        cursor.execute("select userid, name, address, email, cast(userid in (select userid from admins) as varchar) as role from users order by name")
+    else:
+        cursor.execute(f"select userid, name, address, email, cast(userid in (select userid from admins) as varchar) as role from users where name ~* '{entry}' OR cast(userid as varchar) ~* '{entry}' order by name")
+    connection.commit()
+    results = cursor.fetchall()
+    print("res:", results)
+    for userid, name, address, email, admin in results:
+        userdict[userid] = {
+            "userid": userid,
+            "name": name,
+            "address": address,
+            "email": email,
+            "admin": admin
+        }
+    text = Text(f6)
+    text.pack(side="left")
+    sb = Scrollbar(f6, command=text.yview)
+    sb.pack(side="right")
+    text.configure(yscrollcommand=sb.set)
+    for user in userdict.values():
+        if user['admin'] == 'true':
+            cursor.execute(f"select department, phonenumber from admins where userid={user['userid']}")
+            connection.commit()
+            user['department'], user['phonenumber'] = cursor.fetchone()
+        else:
+            cursor.execute(f"select program from students where userid={user['userid']}")
+            connection.commit()
+            user['program'], = cursor.fetchone() # rör inte kommatecknet, det behövs
+        b = Button(text, text=f"[{'Admin' if user['admin'] == 'true' else 'Student'}] {user['userid']} - {user['name']}", command=lambda u=user: result_details(u, "user"))
+        b.pack()
+        text.window_create("end", window=b)
+        text.insert("end", "\n")
+    text.configure(state="disabled")
+    switch_frame(f5, f6)
+    print(bookdict)
+
+
+def search_book():
+    whereclause = ""
+    for language, val in languagechoices.items():
+        if val.get() == 0:
+            continue
+        if whereclause != "":
+            whereclause += " OR "
+        whereclause += f"language = \'{language[0]}\'"
+
+    entry = search_string.get()
+    if entry != "":
+        if whereclause != "":
+            whereclause += "AND"
+        whereclause += f" (title ~* \'{entry.lower()}\' OR author ~* \'{entry.lower()}%\')"
+    cursor.execute(
+        "select bookid, title, author, genre, language, pages, isbn, publisher, edition, concat(dop) from author natural join "
+        f"books natural join edition natural join language natural join genre {'where ' if whereclause != '' else ''}" + whereclause)
+    connection.commit()
+    results = cursor.fetchall()
+    print(whereclause)
+    print(results)
+    for bookid, title, author, genre, language, pages, isbn, publisher, edition, dop in results:
+        bookdict[bookid] = {
+            "bookid": int(bookid),
+            "title": title,
+            "author": author,
+            "genre": genre,
+            "language": language,
+            "pages": pages,
+            "isbn": isbn,
+            "publisher": publisher,
+            "dop": str(dop),
+            "edition": int(edition)
+        }
+    print("bd = ", bookdict)
+    text = Text(f6)
+    text.pack(side="left")
+    sb = Scrollbar(f6, command=text.yview)
+    sb.pack(side="right")
+    text.configure(yscrollcommand=sb.set)
+    for book in bookdict.values():
+        b = Button(text, text=f"{book['title']} - {book['author']}", command=lambda bo=book: result_details(bo, 'book'))
+        b.pack()
+        text.window_create("end", window=b)
+        text.insert("end", "\n")
+    text.configure(state="disabled")
+    switch_frame(f5, f6)
+    print(bookdict)
+
+
+Button(f5, text="Search", command=lambda: search_book() if v1.get() == "2" else search_user()).pack()
+
+menubutton.pack()  # add language list
 
 # search results GUI
 Label(f6, text="Search Results:").pack()
 
+
 # tillfallig array for att kunna skriva koden
 # results = ["Harry Potter", "Alfons", "Brott och straff"]
 
-
-for result in results:
-    Button(f6, text=result, command=lambda entry=result: result_details(entry)).pack()
-
-
 # Book detailed view GUI + update/delete
 
+def switch_frame(from_frame: Frame, to_frame: Frame):
+    raise_frame(to_frame)
+    for widget in from_frame.winfo_children():
+        widget.destroy()
 
-def result_details(entry):
+
+def result_details(result: dict, type):
     raise_frame(f7)
-    Label(f7, text=entry).pack()
-    Button(f7, text="Edit", command=lambda: edit_view(entry)).pack()
-    Button(f7, text="Delete from database",
-           command=lambda: popup_deletion()).pack()
+    temp = {}
+    for key, val in result.items():
+        Label(f7, text=f"{key}: {val}").pack()
+    for key, val in temp.items():
+        result[key] = val
+
+    Button(f7, text="Edit", command=lambda: edit_info(result, type)).pack()
+    Button(f7, text="Back", command=lambda: switch_frame(f7, f6)).pack()
+    Label(f7, text="Physical Copies:").pack()
+
+    # Get physical copies
+    if type == 'book':
+        cursor.execute(f"select r.physicalid, title, damaged from books left join resources r on books.bookid = r.bookid where r.bookid={result['bookid']}")
+    else:
+        cursor.execute(
+            f"select physicalid, title, damaged from (books natural join resources ) natural join borrowing where borrowing.userid={result['userid']} and dor IS NULL")
+    connection.commit()
+    bookcopy = {}
+    for physicalid, title, damaged in cursor.fetchall():
+        bookcopy[physicalid] = {}
+        cursor.execute(f"select name, concat(dob), concat(doe) from users natural join borrowing where dor is null and physicalid={physicalid} and userid ={result['userid']}")
+        connection.commit()
+        temp = cursor.fetchall()
+        print("temp = ",temp)
+        if temp:
+            borrower, dob, doe = temp[0]
+            bookcopy[physicalid]["status"] = f"{title} - Borrowed by {borrower} on {dob}, expires {doe}"
+        else:
+            bookcopy[physicalid]["status"] = f"{title} - Available in {'damaged' if damaged == 'true' else 'good'} condition"
+        bookcopy[physicalid]["damaged"] = damaged
+
+    text = Text(f7)
+    text.pack(side="left")
+    sb = Scrollbar(f7, command=text.yview)
+    sb.pack(side="right")
+    text.configure(yscrollcommand=sb.set)
+    for physicalid in bookcopy.keys():
+        b = Button(text, text=f"{physicalid} - {bookcopy[physicalid]['status']}")
+        b.pack()
+        text.window_create("end", window=b)
+        text.insert("end", "\n")
+    text.configure(state="disabled")
 
 
 # will need input i form av datastruktur som contains alla attribut till tupeln
 
-
-def edit_view(entry):
+def edit_info(bookcopy, type):
     raise_frame(f8)
-    if v1.get() == "1":  # if user search
-        Label(f8, text="Edit User").pack()
+    edits = {}
+    for key, val in bookcopy.items():
+        Label(f8, text=key).pack()
+        if key == "bookid" or key == "userid":
+            Label(f8, text=val).pack()
+            edits[key] = val
+            continue
+        else:
+            if isinstance(val, int):
+                entry = Entry(f8, textvariable=IntVar(f8, val))
+            else:
+                entry = Entry(f8, textvariable=StringVar(f8, val))
+            entry.pack()
+            edits[key] = entry
 
-        Label(f8, text="User ID:").pack()
-        user_id = StringVar(f8)
-        e1 = Entry(f8, textvariable=user_id)
-        e1.insert(0, 123)
-        e1.pack()
-
-        Label(f8, text="Name:").pack()
-        name = StringVar(f8)
-        e2 = Entry(f8, textvariable=name)
-        e2.insert(0, "Stefan Olsson")
-        e2.pack()
-
-        Label(f8, text="Address:").pack()
-        address = StringVar(f8)
-        e3 = Entry(f8, textvariable=address)
-        e3.insert(0, "Birger Jarlsgatan 34")
-        e3.pack()
-
-        Label(f8, text="Email:").pack()
-        email = StringVar(f8)
-        e4 = Entry(f8, textvariable=email)
-        e4.insert(0, "test@gmail.com")
-        e4.pack()
-
-        Label(f8, text="Program (Students only):").pack()
-        program = StringVar(f8)
-        e5 = Entry(f8, textvariable=program)
-        e5.insert(0, "Datateknik")
-        e5.pack()
-
-        Label(f8, text="Department (Admin only):").pack()
-        department = StringVar(f8)
-        e6 = Entry(f8, textvariable=department)
-        e6.insert(0, "")
-        e6.pack()
-
-        Label(f8, text="Phone Number (Admin only):").pack()
-        phone_number = StringVar(f8)
-        e7 = Entry(f8, textvariable=phone_number)
-        e7.insert(0, "")
-        e7.pack()
-
-    if v1.get() == "2":  # if book search
-
-        Label(f8, text="Edit Book").pack()
-
-        Label(f8, text="Book ID:").pack()
-        book_id = StringVar(f8)
-        e1 = Entry(f8, textvariable=book_id)
-        e1.insert(0, "12")
-        e1.pack()
-
-        Label(f8, text="Title:").pack()
-        title = StringVar(f8)
-        e2 = Entry(f4, textvariable=title)
-        e2.insert(0, "Harry Potter")
-        e2.pack()
-
-        Label(f8, text="Pages:").pack()
-        pages = StringVar(f8)
-        e3 = Entry(f8, textvariable=pages)
-        e3.insert(0, "123")
-        e3.pack()
-
-        Label(f8, text="Physical ID:").pack()
-        physical_id = StringVar(f8)
-        e4 = Entry(f8, textvariable=physical_id)
-        e4.insert(0, "43")
-        e4.pack()
-
-        Label(f8, text="Damaged:").pack()
-        damaged = StringVar(f8)
-        e5 = Entry(f8, textvariable=damaged)
-        e5.insert(0, "True")
-        e5.pack()
-
-        Label(f8, text="Prequel ID:").pack()
-        prequel_id = StringVar(f8)
-        e6 = Entry(f8, textvariable=prequel_id)
-        e6.insert(0, "23")
-        e6.pack()
-
-        Label(f8, text="ISBN:").pack()
-        isbn = StringVar(f8)
-        e7 = Entry(f8, textvariable=isbn)
-        e7.insert(0, "12345")
-        e7.pack()
-
-        Label(f8, text="Publisher:").pack()
-        publisher = StringVar(f8)
-        e8 = Entry(f8, textvariable=publisher)
-        e8.insert(0, "E.J. Meadows")
-        e8.pack()
-
-        Label(f8, text="Date of Publishing:").pack()
-        date_of_publishing = StringVar(f8)
-        e9 = Entry(f8, textvariable=date_of_publishing)
-        e9.insert(0, "2019-08-05")
-        e9.pack()
-
-        Label(f8, text="Author:").pack()
-        author = StringVar(f8)
-        e10 = Entry(f8, textvariable=author)
-        e10.insert(0, "JK Rowling")
-        e10.pack()
-
-        Label(f8, text="Genre:").pack()
-        genre = StringVar(f8)
-        e11 = Entry(f8, textvariable=genre)
-        e11.insert(0, "fantasy")
-        e11.pack()
-
-        Label(f8, text="Language:").pack()
-        language = StringVar(f8)
-        e12 = Entry(f8, textvariable=language)
-        e12.insert(0, "svenska")
-        e12.pack()
-
-        Label(f8)
-
-    Button(f8, text="Save changes", command=lambda: update_entry()).pack()
+    Button(f8, text="Save", command=lambda: update_book(bookcopy, edits) if type == 'book' else update_user(bookcopy, edits)).pack()
+    Button(f8, text="Back", command=lambda: switch_frame(f8, f7)).pack()
 
 
-def update_entry():
+def update_user(old: dict, edits: dict):
+    for key, val in edits.items():
+        if key == 'userid' or key == 'admin':
+            continue
+        old[key] = val.get()
+
+    cursor.execute(f"update users set name = '{edits['name'].get()}', address = '{edits['address'].get()}', email = '{edits['email'].get()}' where userid = {edits['userid']}")
+
+    if old['admin'] == 'true':
+        cursor.execute(f"update admins set department = '{edits['department'].get()}', phonenumber = '{edits['phonenumber'].get()}' where userid = {edits['userid']}")
+    else:
+        cursor.execute(f"update students set program = '{edits['program'].get()}' where userid = {edits['userid']}")
 
     connection.commit()
-    popup_edit()
+    messagebox.showinfo(box_title, "Entry has been edited!")
+    switch_frame(f8, f7)
+
+
+def update_book(old: dict, edits: dict):
+    for key, val in edits.items():
+        if key == 'bookid':
+            continue
+        old[key] = val.get()
+
+    cursor.execute(f"update books set title = '{edits['title'].get()}', pages = {edits['pages'].get()} where bookid = {edits['bookid']}")
+    cursor.execute(
+        f"update author set author = '{edits['author'].get()}' where bookid = {edits['bookid']} and author = '{old['author']}'")
+    cursor.execute(
+        f"update edition set isbn = '{edits['isbn'].get()}', edition = {edits['edition'].get()}, publisher = '{edits['publisher'].get()}', dop = '{edits['dop'].get()}' where bookid = {edits['bookid']}")
+    cursor.execute(
+        f"update genre set genre = '{edits['genre'].get()}' where bookid = {edits['bookid']} and genre = '{old['genre']}'")
+    cursor.execute(
+        f"update language set language = '{edits['language'].get()}' where bookid = {edits['bookid']} and language = '{old['language']}'")
+    connection.commit()
+    messagebox.showinfo(box_title, "Entry has been edited!")
+    switch_frame(f8, f7)
 
 
 # render initial GUI
