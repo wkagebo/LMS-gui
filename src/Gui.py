@@ -4,12 +4,11 @@ import psycopg2
 from tkinter import messagebox
 
 
-
 # Connect to PSQL Database
 connection = psycopg2.connect(user="kagebo",
-                            password="D1EIvI0A",
-                            host="psql-dd1368-ht21.sys.kth.se",
-                            database="kagebo")
+                              password="D1EIvI0A",
+                              host="psql-dd1368-ht21.sys.kth.se",
+                              database="kagebo")
 
 # The cursor is used to perform database operations
 cursor = connection.cursor()
@@ -70,7 +69,7 @@ Button(f1, text="Login", command=lambda: login_verification(admin_id)).pack()
 
 # Login user_id query
 def login_verification(key):
-    cursor.execute("select 1 from admins where userid=" + str(key.get()))
+    cursor.execute("select 1 from admins where userid=" + key.get())
 
     if cursor.fetchone():  # if query returns true
         raise_frame(f2)
@@ -122,7 +121,8 @@ def add_user():
                    str(address.get()) + ", " + str(email.get()) + ")")
     cursor.execute("insert into admins values (" + int(user_id.get()) + ", " + str(department.get()) + ", " +
                    str(phone_number.get()) + ")")
-    cursor.execute("insert into students values (" + int(user_id.get()) + ", " + str(program.get()) + ")")
+    cursor.execute("insert into students values (" +
+                   int(user_id.get()) + ", " + str(program.get()) + ")")
     connection.commit()
     popup()
 
@@ -158,6 +158,10 @@ Label(f4, text="ISBN:").pack()
 isbn = StringVar(f4)
 Entry(f4, textvariable=isbn).pack()
 
+Label(f4, text="Edition:").pack()
+edition = StringVar(f4)
+Entry(f4, textvariable=edition).pack()
+
 Label(f4, text="Publisher:").pack()
 publisher = StringVar(f4)
 Entry(f4, textvariable=publisher).pack()
@@ -178,9 +182,34 @@ Label(f4, text="Language:").pack()
 language = StringVar(f4)
 Entry(f4, textvariable=language).pack()
 
-Button(f4, text="Create Book", command=lambda: popup()).pack()
+Button(f4, text="Create Book", command=lambda: add_book()).pack()
+
+
+def add_book():
+    # cursor.execute("insert into books values (" + book_id.get() +
+    #                "," + title.get() + "," + pages.get() + ")")
+    #                physical_id.get() + "," + damaged.get() + "," + prequel_id.get() + "," + isbn.get() + "," +
+    #                edition.get() + "," + publisher.get())
+    cursor.execute("insert into TABLE values (")
+    cursor.execute("insert into TABLE values (")
+    cursor.execute("insert into TABLE values (")
+    cursor.execute("insert into TABLE values (")
+    cursor.execute("insert into TABLE values (")
+    cursor.execute("insert into TABLE values (")
+
+    connection.commit()
+    popup()
+
 
 # search GUI
+search_settings = {}
+cursor.execute("select distinct language from language")
+connection.commit()
+language_options = cursor.fetchall()
+chosen_language = StringVar()
+chosen_language.set("Swedish")
+languagedropdown = OptionMenu()
+
 Label(f5, text="Search")
 Radiobutton(f5, text="User", value=1, indicatoron=0,
             variable=v1).pack()
@@ -205,7 +234,9 @@ Button(f5, text="Search", command=lambda: raise_frame(f6)).pack()
 Label(f6, text="Search Results:").pack()
 
 # tillfallig array for att kunna skriva koden
-results = ["Harry Potter", "Alfons", "Brott och straff"]
+# results = ["Harry Potter", "Alfons", "Brott och straff"]
+
+
 for result in results:
     Button(f6, text=result, command=lambda entry=result: result_details(entry)).pack()
 
@@ -226,7 +257,7 @@ def result_details(entry):
 
 def edit_view(entry):
     raise_frame(f8)
-    if (v1.get() == "1"):  # if user search
+    if v1.get() == "1":  # if user search
         Label(f8, text="Edit User").pack()
 
         Label(f8, text="User ID:").pack()
@@ -272,6 +303,7 @@ def edit_view(entry):
         e7.pack()
 
     if v1.get() == "2":  # if book search
+
         Label(f8, text="Edit Book").pack()
 
         Label(f8, text="Book ID:").pack()
@@ -289,13 +321,13 @@ def edit_view(entry):
         Label(f8, text="Pages:").pack()
         pages = StringVar(f8)
         e3 = Entry(f8, textvariable=pages)
-        e3.insert(0, 123)
+        e3.insert(0, "123")
         e3.pack()
 
         Label(f8, text="Physical ID:").pack()
         physical_id = StringVar(f8)
         e4 = Entry(f8, textvariable=physical_id)
-        e4.insert(0, 43)
+        e4.insert(0, "43")
         e4.pack()
 
         Label(f8, text="Damaged:").pack()
@@ -307,13 +339,13 @@ def edit_view(entry):
         Label(f8, text="Prequel ID:").pack()
         prequel_id = StringVar(f8)
         e6 = Entry(f8, textvariable=prequel_id)
-        e6.insert(0, 23)
+        e6.insert(0, "23")
         e6.pack()
 
         Label(f8, text="ISBN:").pack()
         isbn = StringVar(f8)
         e7 = Entry(f8, textvariable=isbn)
-        e7.insert(0, 12345)
+        e7.insert(0, "12345")
         e7.pack()
 
         Label(f8, text="Publisher:").pack()
@@ -346,7 +378,15 @@ def edit_view(entry):
         e12.insert(0, "svenska")
         e12.pack()
 
-    Button(f8, text="Save changes", command=lambda: popup_edit()).pack()
+        Label(f8)
+
+    Button(f8, text="Save changes", command=lambda: update_entry()).pack()
+
+
+def update_entry():
+
+    connection.commit()
+    popup_edit()
 
 
 # render initial GUI
