@@ -5,7 +5,6 @@ from tkinter import messagebox
 
 box_title = "Success!"
 root = Tk()
-
 # initialize frames used in the GUI
 frame_initial = Frame(root)
 frame_add = Frame(root)
@@ -13,21 +12,11 @@ frame_search = Frame(root)
 frame_search_results = Frame(root)
 frame_result_details = Frame(root)
 frame_edit = Frame(root)
-
 v1 = StringVar()
 isdamagedglobalvariablecauseidkhowtofixthecheckbutton = StringVar(frame_add)
 
 for frame in (frame_initial, frame_add, frame_search, frame_search_results, frame_result_details, frame_edit):
     frame.grid(row=0, column=0, sticky='news')
-
-
-# # Login user_id query
-# def login_verification(key):
-#     cursor.execute("select from admins where userid=" + key.get())
-#
-#     if cursor.fetchone():  # if query returns true
-#         switch_frame(f1, f2)
-#         connection.commit()  # commit to the database
 
 
 def raise_frame(frame):
